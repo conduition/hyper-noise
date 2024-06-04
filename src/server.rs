@@ -5,7 +5,7 @@ use tokio_noise::{
     NoiseTcpStream,
 };
 
-use std::{error::Error, future::Future};
+use std::{error::Error, future::Future, net::SocketAddr};
 
 use crate::ServerError;
 
@@ -43,23 +43,23 @@ pub async fn accept_and_serve_http<Psk, P, M1, M2, Svc, F, E>(
     mut make_handle_request: M2,
 ) -> Result<(), std::io::Error>
 where
-    M1: FnMut(std::net::SocketAddr) -> Responder<P, Psk>,
+    M1: FnMut(SocketAddr) -> Responder<P, Psk>,
     P: 'static + Send + FnMut(&[u8]) -> Option<Psk>,
     Psk: 'static + Send + Sync + AsRef<[u8]>,
-    M2: FnMut() -> Svc,
+    M2: FnMut(SocketAddr) -> Svc,
     Svc: 'static + Send + FnMut(&[u8], Request<Body>) -> F,
     F: 'static + Send + Future<Output = Result<Response<Body>, E>>,
     E: Into<Box<dyn Error + Send + Sync>>,
 {
     loop {
-        let handle_request: Svc = make_handle_request();
-
         let (tcp_stream, remote_addr) = match listener.accept().await {
             Ok(s) => s,
             Err(e) => return Err(e)?,
         };
 
         let responder = make_responder(remote_addr);
+        let handle_request: Svc = make_handle_request(remote_addr);
+
         tokio::task::spawn(async move {
             let result = serve_http(tcp_stream, responder, handle_request).await;
 
@@ -98,7 +98,7 @@ mod tests {
             Responder::new(move |id| peers.get(id).cloned())
         };
 
-        let make_handle_request = || {
+        let make_handle_request = |_| {
             |peer_id: &[u8], _req: Request<Body>| async move {
                 let _ = peer_id;
                 let resp = Response::new(Body::empty());
@@ -134,7 +134,7 @@ mod tests {
             Ok::<_, Infallible>(resp)
         }
 
-        let make_handle_request = || {
+        let make_handle_request = |_| {
             |peer_id: &[u8], req| {
                 let peer_id = peer_id.to_vec();
                 async move { handle_request(&peer_id, req).await }
@@ -161,7 +161,7 @@ mod tests {
             Responder::new(move |id| peers.lock().unwrap().get(id).cloned())
         };
 
-        let make_handle_request = || {
+        let make_handle_request = |_| {
             |peer_id: &[u8], _req: Request<Body>| async move {
                 let _ = peer_id;
                 let resp = Response::new(Body::empty());
