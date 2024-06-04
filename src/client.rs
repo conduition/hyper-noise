@@ -1,20 +1,18 @@
 use hyper::{Body, Request, Response};
 use tokio::net::TcpStream;
-use tokio_noise::{handshakes, NoiseTcpStream};
+use tokio_noise::{
+    handshakes::{nn_psk2::Initiator, NNpsk2},
+    NoiseTcpStream,
+};
 
 use crate::ClientError;
 
 pub async fn send_request(
     tcp_stream: TcpStream,
-    our_id: impl AsRef<[u8]>,
-    psk: impl AsRef<[u8]>,
+    initiator: Initiator<'_>,
     request: Request<Body>,
 ) -> Result<Response<Body>, ClientError> {
-    let initiator = handshakes::nn_psk2::Initiator {
-        psk: psk.as_ref(),
-        identity: our_id.as_ref(),
-    };
-    let handshake = handshakes::NNpsk2::new(initiator);
+    let handshake = NNpsk2::new(initiator);
     let noise_stream = NoiseTcpStream::handshake_initiator(tcp_stream, handshake).await?;
 
     let (mut request_sender, connection) = hyper::client::conn::handshake(noise_stream).await?;
