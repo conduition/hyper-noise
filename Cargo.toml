@@ -1,0 +1,18 @@
+[package]
+name = "hyper-noise"
+version = "0.0.1"
+edition = "2021"
+authors = ["conduition <conduition@proton.me>"]
+description = "A Noise protocol encryption layer on top of hyper HTTP servers and clients."
+license = "Unlicense"
+repository = "https://github.com/conduition/hyper-noise"
+keywords = ["noise", "hyper", "snow", "http", "https"]
+
+[dependencies]
+tokio = { version = "1", default-features = false, features = ["io-util", "net"] }
+log = { version = "0.4", default-features = false }
+hyper = { version = "0.14", features = ["full"] }
+tokio-noise = { git = "https://github.com/conduition/tokio-noise", branch = "nn_psk2" }
+
+[dev-dependencies]
+tokio = { version = "1", default-features = false, features = ["macros"] }
