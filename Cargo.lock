@@ -685,8 +685,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-noise"
-version = "0.0.3"
-source = "git+https://github.com/conduition/tokio-noise?branch=nn_psk2#b4a7465f88d761b479f3269c8cae26c41925aa86"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "616a12b07009d6d8b98eea1117fb073e862c5a035caa22cb8208224c58911323"
 dependencies = [
  "log",
  "snow",
