@@ -1,2 +1,5 @@
 # hyper-noise
-Noise HTTP client/server using Tokio TCP Streams
+
+This crate implements a wrapper around the `hyper` crate which allows running an HTTP stack over top of a [Noise Protocol Framework](https://noiseprotocol.org/) authenticated encryption channel.
+
+This library is [sponsored by DLC.Link](https://www.dlc.link/).
