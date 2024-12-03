@@ -5,7 +5,7 @@ use tokio_noise::{
     NoiseTcpStream,
 };
 
-use std::{error::Error, future::Future, net::SocketAddr};
+use std::{error::Error, future::Future, net::SocketAddr, time::Duration};
 
 use crate::ServerError;
 
@@ -13,6 +13,7 @@ pub async fn serve_http<Psk, P, H, F, E>(
     tcp_stream: TcpStream,
     mut responder: Responder<P, Psk>,
     mut handle_request: H,
+    handler_timeout: Option<Duration>,
 ) -> Result<(), ServerError>
 where
     P: FnMut(&[u8]) -> Option<Psk>,
@@ -21,26 +22,33 @@ where
     F: 'static + Send + Future<Output = Result<Response<Body>, E>>,
     E: Into<Box<dyn Error + Send + Sync>>,
 {
-    let handshake = NNpsk2::new(&mut responder);
-    let noise_stream = NoiseTcpStream::handshake_responder(tcp_stream, handshake).await?;
+    let timeout = handler_timeout.unwrap_or(Duration::from_secs(999999999));
+    tokio::time::timeout(timeout, async move {
+        let handshake = NNpsk2::new(&mut responder);
+        let noise_stream = NoiseTcpStream::handshake_responder(tcp_stream, handshake).await?;
 
-    let peer_identity = responder
-        .initiator_identity()
-        .expect("initiator identity is always set after successful handshake")
-        .to_owned();
+        let peer_identity = responder
+            .initiator_identity()
+            .expect("initiator identity is always set after successful handshake")
+            .to_owned();
 
-    let http_service = hyper::service::service_fn(move |req| handle_request(&peer_identity, req));
+        let http_service =
+            hyper::service::service_fn(move |req| handle_request(&peer_identity, req));
 
-    hyper::server::conn::Http::new()
-        .serve_connection(noise_stream, http_service)
-        .await?;
-    Ok(())
+        hyper::server::conn::Http::new()
+            .serve_connection(noise_stream, http_service)
+            .await?;
+        Ok(())
+    })
+    .await
+    .map_err(|_| ServerError::HandlerTimeout)?
 }
 
 pub async fn accept_and_serve_http<Psk, P, M1, M2, Svc, F, E>(
     listener: TcpListener,
     mut make_responder: M1,
     mut make_handle_request: M2,
+    timeout: Option<Duration>,
 ) -> Result<(), std::io::Error>
 where
     M1: FnMut(SocketAddr) -> Responder<P, Psk>,
@@ -61,7 +69,7 @@ where
         let handle_request: Svc = make_handle_request(remote_addr);
 
         tokio::task::spawn(async move {
-            let result = serve_http(tcp_stream, responder, handle_request).await;
+            let result = serve_http(tcp_stream, responder, handle_request, timeout).await;
 
             if let Err(e) = result {
                 log::warn!(
@@ -107,7 +115,7 @@ mod tests {
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        accept_and_serve_http(listener, make_responder, make_handle_request)
+        accept_and_serve_http(listener, make_responder, make_handle_request, None)
             .await
             .unwrap();
     }
@@ -142,7 +150,7 @@ mod tests {
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        accept_and_serve_http(listener, make_responder, make_handle_request)
+        accept_and_serve_http(listener, make_responder, make_handle_request, None)
             .await
             .unwrap();
     }
@@ -170,7 +178,7 @@ mod tests {
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        accept_and_serve_http(listener, make_responder, make_handle_request)
+        accept_and_serve_http(listener, make_responder, make_handle_request, None)
             .await
             .unwrap();
     }

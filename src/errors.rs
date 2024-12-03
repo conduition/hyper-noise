@@ -2,6 +2,7 @@
 pub enum ServerError {
     Hyper(hyper::Error),
     Noise(tokio_noise::NoiseError),
+    HandlerTimeout,
 }
 
 impl From<hyper::Error> for ServerError {
@@ -24,6 +25,7 @@ impl std::fmt::Display for ServerError {
             match self {
                 Hyper(e) => format!("hyper error: {e}"),
                 Noise(e) => format!("noise error: {e}"),
+                HandlerTimeout => "timed out handling noise HTTP request".to_string(),
             }
         )
     }
@@ -35,6 +37,7 @@ impl std::error::Error for ServerError {}
 pub enum ClientError {
     Hyper(hyper::Error),
     Noise(tokio_noise::NoiseError),
+    RequestTimeout,
 }
 
 impl From<hyper::Error> for ClientError {
@@ -57,6 +60,7 @@ impl std::fmt::Display for ClientError {
             match self {
                 Hyper(e) => format!("hyper error: {e}"),
                 Noise(e) => format!("noise error: {e}"),
+                RequestTimeout => "timed out waiting for noise HTTP response".to_string(),
             }
         )
     }
